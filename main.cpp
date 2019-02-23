@@ -13,6 +13,9 @@
 #include "Window.h"
 #include "Mesh.h"
 #include "Shader.h"
+#include "Ball.h"
+
+float rotate = 0.0f;
 
 // Window dimensions
 const GLint WIDTH = 800, HEIGHT = 600;
@@ -59,10 +62,6 @@ void CreateObjects()
 	Mesh *obj1 = new Mesh();
 	obj1->CreateMesh(vertices, indices, 12, 12);
 	meshList.push_back(obj1);
-
-	Mesh *obj2 = new Mesh();
-	obj2->CreateMesh(vertices, indices, 12, 12);
-	meshList.push_back(obj2);
 }
 
 void CreateShaders()
@@ -74,6 +73,9 @@ void CreateShaders()
 
 int main()
 {
+	//W,Vb,xAngle,yAngle,spinDir
+	Ball myBall(80.0f, 36.0f, -30.0f, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+
 	mainWindow = Window(800, 600);
 	mainWindow.Initialise();
 
@@ -89,36 +91,6 @@ int main()
 		// Get + Handle user input events
 		glfwPollEvents();
 
-		if (direction)
-		{
-			triOffset += triIncrement;
-		}
-		else {
-			triOffset -= triIncrement;
-		}
-
-		if (abs(triOffset) >= triMaxOffset) {
-			direction = !direction;
-		}
-
-		curAngle += 0.1f;
-		if (curAngle >= 360)
-		{
-			curAngle -= 360;
-		}
-
-		if (direction)
-		{
-			curSize += 0.001f;
-		}
-		else {
-			curSize -= 0.001f;
-		}
-
-		if (curSize >= maxSize || curSize <= minSize) {
-			sizeDirection = !sizeDirection;
-		}
-
 		// Clear window
 		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -129,17 +101,15 @@ int main()
 
 		glm::mat4 model(1.0f);
 
-		model = glm::translate(model, glm::vec3(triOffset, 0.0f, -2.5f));
-		model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
+		model = glm::translate(model, myBall.euler()/100.0f);
+		
+		rotate -= 0.05f;
+		model = glm::rotate(model, rotate, glm::vec3(0.0f, 1.0f, 0.0f));
+		
+		model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f));
 		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
 		glUniformMatrix4fv(uniformProjection, 1, GL_FALSE, glm::value_ptr(projection));
 		meshList[0]->RenderMesh();
-
-		model = glm::mat4();
-		model = glm::translate(model, glm::vec3(-triOffset, 1.0f, -2.5f));
-		model = glm::scale(model, glm::vec3(0.4f, 0.4f, 1.0f));
-		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
-		meshList[1]->RenderMesh();
 
 		glUseProgram(0);
 
