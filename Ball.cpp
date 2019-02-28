@@ -39,7 +39,7 @@ glm::vec3 Ball::euler()
 	acceleration.y = (-mass*gravity-K * velocityAbs * velocity.y - Kl * (spinDirection.z*velocity.x - spinDirection.x*velocity.z)) / mass;
 	acceleration.z = (-K * velocityAbs*velocity.z - Kl * (spinDirection.x*velocity.y - spinDirection.y*velocity.x)) / mass;
 
-	if (position.y < 0) return position;
+	if (position.y < -3.0f) return position;
 
 	position.x = (position.x + velocity.x*0.01f);
 	position.y = (position.y + velocity.y*0.01f);

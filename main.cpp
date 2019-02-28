@@ -18,7 +18,7 @@
 float rotate = 0.0f;
 
 // Window dimensions
-const GLint WIDTH = 800, HEIGHT = 600;
+const GLint WIDTH = 1920, HEIGHT = 1080;
 const float toRadians = 3.14159265f / 180.0f;
 
 Window mainWindow;
@@ -52,6 +52,11 @@ void CreateObjects()
 		0, 1, 2
 	};
 
+	unsigned int indicesPlane[] = {
+		0, 1, 3,
+		2, 1, 3,
+	};
+
 	GLfloat vertices[] = {
 		-1.0f, -1.0f, 0.0f,
 		0.0f, -1.0f, 1.0f,
@@ -59,9 +64,20 @@ void CreateObjects()
 		0.0f, 1.0f, 0.0f
 	};
 
+	GLfloat verticesPlane[] = {
+		-1.0f, 0.0f, -1.0f,
+		-1.0f, 0.0f, 1.0f,
+		1.0f, 0.0f, 1.0f,
+		1.0f, 0.0f, -1.0f
+	};
+
 	Mesh *obj1 = new Mesh();
 	obj1->CreateMesh(vertices, indices, 12, 12);
 	meshList.push_back(obj1);
+
+	Mesh *plane = new Mesh();
+	plane->CreateMesh(verticesPlane, indicesPlane, 12, 6);
+	meshList.push_back(plane);
 }
 
 void CreateShaders()
@@ -111,6 +127,13 @@ int main()
 		glUniformMatrix4fv(uniformProjection, 1, GL_FALSE, glm::value_ptr(projection));
 		meshList[0]->RenderMesh();
 
+		model = glm::mat4(1.0f);
+		//model = glm::rotate(model, )
+		model = glm::translate(model, glm::vec3(0.0f, -0.5f, -2.5f));
+		model = glm::scale(model, glm::vec3(5.0f, 1.0f, 5.0f));
+		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+		meshList[1]->RenderMesh();
+		
 		glUseProgram(0);
 
 		mainWindow.swapBuffers();
