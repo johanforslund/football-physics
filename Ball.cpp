@@ -59,5 +59,19 @@ glm::vec3 Ball::getPosition()
 
 Ball::~Ball()
 {
-	
+	angularVelocity = 0;
+	initVelocity = 0;
+	xAngle = 0;
+	yAngle = 0;
+
+	spinDirection = glm::vec3(0.0f, 0.0f, 0.0f);
+
+	liftConst = 0;
+	K = 0;
+
+	velocity.x = 0;
+	velocity.y = 0;
+	velocity.z = 0;
+
+	position = glm::vec3(0.0f, 0.0f, 0.0f);
 }
