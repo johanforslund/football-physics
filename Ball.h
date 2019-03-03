@@ -1,14 +1,17 @@
 #pragma once
 
 #include <glm/glm.hpp>
+#include <GL\glew.h>
 
 class Ball
 {
 public:
 	Ball(float _angularVelocity, float _initVelocity, float _xAngle, float _yAngle, glm::vec3 _spinDirection);
 
-	glm::vec3 euler();
+	glm::vec3 euler(GLfloat deltaTime);
 	glm::vec3 getPosition();
+	void kick();
+	bool getHasBeenKicked();
 
 	~Ball();
 private:
@@ -26,6 +29,8 @@ private:
 	float xAngle;
 	float yAngle;
 	float K;
+
+	bool hasBeenKicked = false;
 	
 	glm::vec3 spinDirection;
 	glm::vec3 position;

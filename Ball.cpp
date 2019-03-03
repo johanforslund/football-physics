@@ -2,6 +2,7 @@
 
 #include <cmath>
 #include <stdio.h>
+#include <GL\glew.h>
 
 
 Ball::Ball(float _angularVelocity, float _initVelocity, float _xAngle, float _yAngle, glm::vec3 _spinDirection)
@@ -22,10 +23,10 @@ Ball::Ball(float _angularVelocity, float _initVelocity, float _xAngle, float _yA
 	velocity.y = initVelocity * cos(yAngle);
 	velocity.z = initVelocity * sin(yAngle)*cos(xAngle);
 
-	position = glm::vec3(0.0f, 0.0f, -10.5f);
+	position = glm::vec3(0.0f, 0.0f, 0.0f);
 }
 
-glm::vec3 Ball::euler()
+glm::vec3 Ball::euler(GLfloat deltaTime)
 {
 	glm::vec3 acceleration;
 
@@ -39,15 +40,15 @@ glm::vec3 Ball::euler()
 	acceleration.y = (-mass*gravity-K * velocityAbs * velocity.y - Kl * (spinDirection.z*velocity.x - spinDirection.x*velocity.z)) / mass;
 	acceleration.z = (-K * velocityAbs*velocity.z - Kl * (spinDirection.x*velocity.y - spinDirection.y*velocity.x)) / mass;
 
-	if (position.y < -3.0f) return position;
+	if (position.y < 0.0f) return position;
 
-	position.x = (position.x + velocity.x*0.01f);
-	position.y = (position.y + velocity.y*0.01f);
-	position.z = (position.z + velocity.z*0.01f);
+	position.x = (position.x + velocity.x*deltaTime);
+	position.y = (position.y + velocity.y*deltaTime);
+	position.z = (position.z + velocity.z*deltaTime);
 
-	velocity.x = velocity.x + acceleration.x*0.01f;
-	velocity.y = velocity.y + acceleration.y*0.01f;
-	velocity.z = velocity.z + acceleration.z*0.01f;
+	velocity.x = velocity.x + acceleration.x*deltaTime;
+	velocity.y = velocity.y + acceleration.y*deltaTime;
+	velocity.z = velocity.z + acceleration.z*deltaTime;
 
 	return position;
 }
@@ -55,6 +56,16 @@ glm::vec3 Ball::euler()
 glm::vec3 Ball::getPosition()
 {
 	return position;
+}
+
+bool Ball::getHasBeenKicked()
+{
+	return hasBeenKicked;
+}
+
+void Ball::kick()
+{
+	hasBeenKicked = true;
 }
 
 Ball::~Ball()

@@ -1,3 +1,5 @@
+#define STB_IMAGE_IMPLEMENTATION
+
 #include <stdio.h>
 #include <string.h>
 #include <cmath>
@@ -15,6 +17,7 @@
 #include "Shader.h"
 #include "Camera.h"
 #include "Ball.h"
+#include "Texture.h"
 
 float rotate = 0.0f;
 
@@ -26,6 +29,8 @@ Window mainWindow;
 std::vector<Mesh*> meshList;
 std::vector<Shader> shaderList;
 Camera camera;
+Texture field;
+Texture ball;
 
 GLfloat deltaTime = 0.0f;
 GLfloat lastTime = 0.0f;
@@ -63,25 +68,25 @@ void CreateObjects()
 	};
 
 	GLfloat vertices[] = {
-		-1.0f, -1.0f, 0.0f,
-		0.0f, -1.0f, 1.0f,
-		1.0f, -1.0f, 0.0f,
-		0.0f, 1.0f, 0.0f
+		-1.0f, -1.0f, 0.0f,				0.0f, 1.0f,
+		0.0f, -1.0f, 1.0f,				0.0f, 0.0f,
+		1.0f, -1.0f, 0.0f,				1.0f, 0.0f,	
+		0.0f, 1.0f, 0.0f,				1.0f, 1.0f
 	};
 
 	GLfloat verticesPlane[] = {
-		-1.0f, 0.0f, -1.0f,
-		-1.0f, 0.0f, 1.0f,
-		1.0f, 0.0f, 1.0f,
-		1.0f, 0.0f, -1.0f
+		-1.0f, 0.0f, -1.0f,				1.0f, 1.0f,
+		-1.0f, 0.0f, 1.0f,				0.0f, 1.0f,
+		1.0f, 0.0f, 1.0f,				0.0f, 0.0f,
+		1.0f, 0.0f, -1.0f,				1.0f, 0.0f
 	};
 
 	Mesh *obj1 = new Mesh();
-	obj1->CreateMesh(vertices, indices, 12, 12);
+	obj1->CreateMesh(vertices, indices, 20, 12);
 	meshList.push_back(obj1);
 
 	Mesh *plane = new Mesh();
-	plane->CreateMesh(verticesPlane, indicesPlane, 12, 6);
+	plane->CreateMesh(verticesPlane, indicesPlane, 20, 6);
 	meshList.push_back(plane);
 }
 
@@ -95,7 +100,7 @@ void CreateShaders()
 int main()
 {
 	//W,Vb,xAngle,yAngle,spinDir
-	Ball myBall(80.0f, 36.0f, -30.0f, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
+	Ball myBall(80.0f, 36.0f, 0.0f, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
 	
 
 	mainWindow = Window(800, 600);
@@ -104,10 +109,16 @@ int main()
 	CreateObjects();
 	CreateShaders();
 
-	camera = Camera(glm::vec3(0.0f, 0.0f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f, 5.0f, 0.5f);
+	camera = Camera(glm::vec3(0.0f, 0.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f, 5.0f, 0.5f);
+
+	field = Texture("Textures/soccerfield.png");
+	field.LoadTexture();
+	ball = Texture("Textures/foolball.png");
+	ball.LoadTexture();
+
 
 	GLuint uniformProjection = 0, uniformModel = 0, uniformView = 0;
-	glm::mat4 projection = glm::perspective(45.0f, (GLfloat)mainWindow.getBufferWidth() / mainWindow.getBufferHeight(), 0.1f, 100.0f);
+	glm::mat4 projection = glm::perspective(45.0f, (GLfloat)mainWindow.getBufferWidth() / mainWindow.getBufferHeight(), 0.1f, 1000.0f);
 
 	// Loop until window closed
 	while (!mainWindow.getShouldClose())
@@ -135,24 +146,32 @@ int main()
 		uniformView = shaderList[0].GetViewLocation();
 
 		glm::mat4 model = glm::mat4(1.0f);
-
-		model = glm::translate(model, myBall.euler()/100.0f);
+		bool* keys = mainWindow.getsKeys();
+		if (keys[GLFW_KEY_F])
+		{
+			myBall.kick();
+		}
+		if (myBall.getHasBeenKicked())
+		{
+			model = glm::translate(model, myBall.euler(deltaTime));
+			rotate -= 0.05f;
+			model = glm::rotate(model, rotate, glm::vec3(0.0f, 1.0f, 0.0f));
+		}
 		
-		rotate -= 0.05f;
-		model = glm::rotate(model, rotate, glm::vec3(0.0f, 1.0f, 0.0f));
-		//printf("%f", myBall.getPosition().z);
 		
-		model = glm::scale(model, glm::vec3(0.04f, 0.04f, 0.04f));
+		
+		model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
 		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
 		glUniformMatrix4fv(uniformProjection, 1, GL_FALSE, glm::value_ptr(projection));
 		glUniformMatrix4fv(uniformView, 1, GL_FALSE, glm::value_ptr(camera.calculateViewMatrix()));
+		ball.UseTexture();
 		meshList[0]->RenderMesh();
 
 		model = glm::mat4(1.0f);
 		//model = glm::rotate(model, )
-		model = glm::translate(model, glm::vec3(0.0f, -0.5f, -2.5f));
-		model = glm::scale(model, glm::vec3(5.0f, 1.0f, 5.0f));
+		model = glm::scale(model, glm::vec3(67.0f, 1.0f, 103.0f));
 		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+		field.UseTexture();
 		meshList[1]->RenderMesh();
 		
 		glUseProgram(0);
