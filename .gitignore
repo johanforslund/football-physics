@@ -1,3 +1,5 @@
 Debug/
 
-Release
+Release/
+Textures/
+stb_image.h
