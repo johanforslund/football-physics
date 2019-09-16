@@ -8,6 +8,8 @@
 #include <GL\glew.h>
 #include <GLFW\glfw3.h>
 #include <assimp/Importer.hpp>
+#include "imgui\imgui.h"
+#include "imgui\imgui_impl_glfw_gl3.h"
 
 #include <glm\glm.hpp>
 #include <glm\gtc\matrix_transform.hpp>
@@ -23,37 +25,50 @@
 
 #include "Model.h"
 
+#include "Skybox.h"
+
 float rotate = 0.0f;
 
 // Window dimensions
-const GLint WIDTH = 1920, HEIGHT = 1080;
 const float toRadians = 3.14159265f / 180.0f;
 
+GLuint uniformProjection = 0, uniformModel = 0, uniformView = 0;
+GLuint uniformAmbientIntensity = 0, uniformAmbientColour = 0, uniformDirection = 0, uniformDiffuseIntensity = 0, uniformDirectionalLightTransform = 0;
+
 Window mainWindow;
-std::vector<Mesh*> meshList;
 std::vector<Shader> shaderList;
+Shader directionalShadowShader;
+
 Camera camera;
-Texture field;
-Texture ball;
 
 Model nanosuit;
+Model stadiumMod;
+Model ballMod;
+Model wallMod;
+Model goalMod;
 
 Light mainLight;
 
+Skybox skybox;
+
+//W,Vb,xAngle,yAngle,spinDir
+float angularVelocity = 100.0f;
+glm::vec3 spinDirection = glm::vec3(0.0f, 1.0f, 0.0f);
+float initVelocity = 40.0f;
+float xAngle = -20.0f;
+float yAngle = 20.0f;
+glm::vec3 ballStartPosition = glm::vec3(0.0f, 0.31f, 0.0f);
+Ball myBall(angularVelocity, initVelocity, xAngle, yAngle, spinDirection);
+
+bool shouldFollowBall = false;
+bool settingsActive = false;
+bool setupStage = true;
+glm::vec3 cameraSetupPosition = glm::vec3(0.0f, 110.0f, 0.0f);
+GLfloat cameraSetupYaw = -90.0f;
+GLfloat cameraSetupPitch = -70.0f;
+
 GLfloat deltaTime = 0.0f;
 GLfloat lastTime = 0.0f;
-
-bool direction = true;
-float triOffset = 0.0f;
-float triMaxOffset = 0.7f;
-float triIncrement = 0.005f;
-
-float curAngle = 0.0f;
-
-bool sizeDirection = true;
-float curSize = 0.4f;
-float maxSize = 0.8f;
-float minSize = 0.1f;
 
 // Vertex Shader code
 static const char* vShader = "Shaders/shader.vert";
@@ -61,112 +76,153 @@ static const char* vShader = "Shaders/shader.vert";
 // Fragment Shader
 static const char* fShader = "Shaders/shader.frag";
 
-void calcAverageNormals(unsigned int * indices, unsigned int indiceCount, GLfloat * vertices, unsigned int verticeCount,
-	unsigned int vLength, unsigned int normalOffset)
-{
-	for (size_t i = 0; i < indiceCount; i += 3)
-	{
-		unsigned int in0 = indices[i] * vLength;
-		unsigned int in1 = indices[i + 1] * vLength;
-		unsigned int in2 = indices[i + 2] * vLength;
-		glm::vec3 v1(vertices[in1] - vertices[in0], vertices[in1 + 1] - vertices[in0 + 1], vertices[in1 + 2] - vertices[in0 + 2]);
-		glm::vec3 v2(vertices[in2] - vertices[in0], vertices[in2 + 1] - vertices[in0 + 1], vertices[in2 + 2] - vertices[in0 + 2]);
-		glm::vec3 normal = glm::cross(v1, v2);
-		normal = glm::normalize(normal);
-
-		in0 += normalOffset; in1 += normalOffset; in2 += normalOffset;
-		vertices[in0] += normal.x; vertices[in0 + 1] += normal.y; vertices[in0 + 2] += normal.z;
-		vertices[in1] += normal.x; vertices[in1 + 1] += normal.y; vertices[in1 + 2] += normal.z;
-		vertices[in2] += normal.x; vertices[in2 + 1] += normal.y; vertices[in2 + 2] += normal.z;
-	}
-
-	for (size_t i = 0; i < verticeCount / vLength; i++)
-	{
-		unsigned int nOffset = i * vLength + normalOffset;
-		glm::vec3 vec(vertices[nOffset], vertices[nOffset + 1], vertices[nOffset + 2]);
-		vec = glm::normalize(vec);
-		vertices[nOffset] = vec.x; vertices[nOffset + 1] = vec.y; vertices[nOffset + 2] = vec.z;
-	}
-}
-
-void CreateObjects()
-{
-	unsigned int indices[] = {
-		0, 3, 1,
-		1, 3, 2,
-		2, 3, 0,
-		0, 1, 2
-	};
-
-	unsigned int indicesPlane[] = {
-		0, 1, 3,
-		2, 1, 3,
-	};
-
-	GLfloat vertices[] = {
-		-1.0f, -1.0f, 0.0f,				0.0f, 1.0f,		0.0f, 0.0f, 0.0f,
-		0.0f, -1.0f, 1.0f,				0.0f, 0.0f,		0.0f, 0.0f, 0.0f,
-		1.0f, -1.0f, 0.0f,				1.0f, 0.0f,		0.0f, 0.0f, 0.0f,
-		0.0f, 1.0f, 0.0f,				1.0f, 1.0f,		0.0f, 0.0f, 0.0f
-	};
-
-	GLfloat verticesPlane[] = {
-		-1.0f, 0.0f, -1.0f,				1.0f, 1.0f,		-0.0f, -1.0f, 0.0f,
-		-1.0f, 0.0f, 1.0f,				0.0f, 1.0f,		-0.0f, -1.0f, 0.0f,
-		1.0f, 0.0f, 1.0f,				0.0f, 0.0f,		-0.0f, -1.0f, 0.0f,
-		1.0f, 0.0f, -1.0f,				1.0f, 0.0f,		-1.0f, -0.0f, 0.0f
-	};
-
-	calcAverageNormals(indices, 12, vertices, 32, 8, 5);
-	//calcAverageNormals(indicesPlane, 6, verticesPlane, 32, 8, 5);
-
-	std::cout << "NORMALS 5 6 7: " << verticesPlane[5] << verticesPlane[6] << verticesPlane[7] << std::endl;
-
-	Mesh *obj1 = new Mesh();
-	obj1->CreateMesh(vertices, indices, 32, 12);
-	meshList.push_back(obj1);
-
-	Mesh *plane = new Mesh();
-	plane->CreateMesh(verticesPlane, indicesPlane, 32, 6);
-	meshList.push_back(plane);
-}
 
 void CreateShaders()
 {
 	Shader *shader1 = new Shader();
 	shader1->CreateFromFiles(vShader, fShader);
 	shaderList.push_back(*shader1);
+
+	directionalShadowShader.CreateFromFiles("Shaders/directional_shadow_map.vert", "Shaders/directional_shadow_map.frag");
+}
+
+void RenderScene()
+{
+	glm::mat4 model = glm::mat4(1.0f);
+	if (setupStage)
+	{
+		model = glm::translate(model, ballStartPosition);
+	}
+	else if (myBall.getHasBeenKicked())
+	{
+		model = glm::translate(model, myBall.euler(deltaTime, ballStartPosition) + ballStartPosition);
+		rotate -= myBall.getAngularVelocity() / 200.0f;
+		glm::vec3 spinDirectionDummy = myBall.getSpinDirection();
+		model = glm::rotate(model, rotate, spinDirectionDummy);
+	}
+	else
+	{
+		model = glm::translate(model, ballStartPosition);
+	}
+
+	model = glm::scale(model, glm::vec3(0.06f, 0.06f, 0.06f));
+	glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+	ballMod.RenderModel();
+
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(-125.0f, 0.0f, 204.0f));
+	model = glm::scale(model, glm::vec3(1.8f, 1.8f, 1.8f));
+	glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+	stadiumMod.RenderModel();
+
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, 0.0f, -50.0f));
+	model = glm::scale(model, glm::vec3(1.5f, 1.5f, 1.5f));
+	glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+	wallMod.RenderModel();
+
+	model = glm::mat4(1.0f);
+	model = glm::translate(model, glm::vec3(0.0f, 0.0f, -93.0f));
+	model = glm::scale(model, glm::vec3(0.45f, 0.45f, 0.45f));
+	glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
+	goalMod.RenderModel();
+}
+
+void DirectionalShadowMapPass(Light* light)
+{
+	directionalShadowShader.UseShader();
+
+	glViewport(0, 0, light->getShadowMap()->GetShadowWidth(), light->getShadowMap()->GetShadowHeight());
+
+	light->getShadowMap()->Write();
+	glClear(GL_DEPTH_BUFFER_BIT);
+
+	uniformModel = directionalShadowShader.GetModelLocation();
+	directionalShadowShader.SetDirectionalLightTransform(&light->CalculateLightTransform());
+
+	RenderScene();
+
+	glBindFramebuffer(GL_FRAMEBUFFER, 0);
+}
+
+void RenderPass(glm::mat4 viewMatrix, glm::mat4 projectionMatrix)
+{
+	glViewport(0, 0, mainWindow.getWidth(), mainWindow.getHeight());
+	// Clear window
+	glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
+	glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
+	skybox.DrawSkybox(viewMatrix, projectionMatrix);
+
+	shaderList[0].UseShader();
+
+	uniformModel = shaderList[0].GetModelLocation();
+	uniformProjection = shaderList[0].GetProjectionLocation();
+	uniformView = shaderList[0].GetViewLocation();
+	uniformAmbientColour = shaderList[0].GetAmbientColourLocation();
+	uniformAmbientIntensity = shaderList[0].GetAmbientIntensityLocation();
+	uniformDirection = shaderList[0].GetDirectionLocation();
+	uniformDiffuseIntensity = shaderList[0].GetDiffuseIntensityLocation();
+
+	glUniformMatrix4fv(uniformProjection, 1, GL_FALSE, glm::value_ptr(projectionMatrix));
+	glUniformMatrix4fv(uniformView, 1, GL_FALSE, glm::value_ptr(viewMatrix));
+
+	shaderList[0].SetDirectionalLightTransform(&mainLight.CalculateLightTransform());
+
+	mainLight.UseLight(uniformAmbientIntensity, uniformAmbientColour, uniformDiffuseIntensity, uniformDirection);
+	mainLight.getShadowMap()->Read(GL_TEXTURE1);
+	shaderList[0].SetTexture(0);
+	shaderList[0].SetDirectionalShadowMap(1);
+
+	RenderScene();
 }
 
 int main()
 {
+	mainWindow = Window(1366, 768);
 	//W,Vb,xAngle,yAngle,spinDir
-	Ball myBall(80.0f, 36.0f, 0.0f, 45.0f, glm::vec3(0.0f, 1.0f, 0.0f));
-	
-
-	mainWindow = Window(800, 600);
 	mainWindow.Initialise();
 
-	CreateObjects();
 	CreateShaders();
 
-	camera = Camera(glm::vec3(0.0f, 0.5f, 0.0f), glm::vec3(0.0f, 1.0f, 0.0f), -90.0f, 0.0f, 5.0f, 0.5f);
-
-	field = Texture("Textures/soccerfield.png");
-	field.LoadTextureA();
-	ball = Texture("Textures/foolball.png");
-	ball.LoadTextureA();
+	camera = Camera(cameraSetupPosition, glm::vec3(0.0f, 1.0f, 0.0f), cameraSetupYaw, cameraSetupPitch, 5.0f, 0.5f);
 
 	nanosuit = Model();
 	nanosuit.LoadModel("Models/nanosuit.obj");
 
-	mainLight = Light(1.0f, 1.0f, 1.0f, 0.2f, 0.0f, -1.0f, 0.0f, 1.0f);
+	stadiumMod = Model();
+	stadiumMod.LoadModel("Models/Stadium.obj");
+
+	ballMod = Model();
+	ballMod.LoadModel("Models/soccerball.obj");
+
+	wallMod = Model();
+	wallMod.LoadModel("Models/wall.obj");
+
+	goalMod = Model();
+	goalMod.LoadModel("Models/goal.obj");
+
+	mainLight = Light(2048, 2048, 0.9f, 0.9f, 1.0f, 0.4f, 34.0f, -150.0f, -66.0f, 0.5f);
+
+	std::vector<std::string> skyboxFaces;
+	skyboxFaces.push_back("Textures/Skybox/bloody-heresy_rt.tga");
+	skyboxFaces.push_back("Textures/Skybox/bloody-heresy_lf.tga");
+	skyboxFaces.push_back("Textures/Skybox/bloody-heresy_up.tga");
+	skyboxFaces.push_back("Textures/Skybox/bloody-heresy_dn.tga");
+	skyboxFaces.push_back("Textures/Skybox/bloody-heresy_bk.tga");
+	skyboxFaces.push_back("Textures/Skybox/bloody-heresy_ft.tga");
+
+	skybox = Skybox(skyboxFaces);
 
 	GLuint uniformProjection = 0, uniformModel = 0, uniformView = 0;
-	GLuint uniformAmbientIntensity = 0, uniformAmbientColour = 0, uniformDirection = 0, uniformDiffuseIntensity = 0;
+
 	glm::mat4 projection = glm::perspective(45.0f, (GLfloat)mainWindow.getBufferWidth() / mainWindow.getBufferHeight(), 0.1f, 1000.0f);
 
-	
+	ImGui::CreateContext();
+	ImGuiIO& io = ImGui::GetIO(); (void)io;
+	ImGui_ImplGlfwGL3_Init(mainWindow.mainWindow, true);
+	ImGui::StyleColorsDark();
+
 	// Loop until window closed
 	while (!mainWindow.getShouldClose())
 	{
@@ -179,65 +235,87 @@ int main()
 
 		glfwPollEvents();
 
-		camera.keyControl(mainWindow.getsKeys(), deltaTime);
-		camera.mouseControl(mainWindow.getXChange(), mainWindow.getYChange());
+		ImGui_ImplGlfwGL3_NewFrame();
 
-
-		// Clear window
-		glClearColor(0.0f, 0.0f, 0.0f, 1.0f);
-		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-
-		shaderList[0].UseShader();
-		uniformModel = shaderList[0].GetModelLocation();
-		uniformProjection = shaderList[0].GetProjectionLocation();
-		uniformView = shaderList[0].GetViewLocation();
-		uniformAmbientColour = shaderList[0].GetAmbientColourLocation();
-		uniformAmbientIntensity = shaderList[0].GetAmbientIntensityLocation();
-		uniformDirection = shaderList[0].GetDirectionLocation();
-		uniformDiffuseIntensity = shaderList[0].GetDiffuseIntensityLocation();
-
-		mainLight.UseLight(uniformAmbientIntensity, uniformAmbientColour, uniformDiffuseIntensity, uniformDirection);
-
-		glm::mat4 model = glm::mat4(1.0f);
-		bool* keys = mainWindow.getsKeys();
-		if (keys[GLFW_KEY_F])
+		if (setupStage)
 		{
+			ballStartPosition.x += mainWindow.getXChange() * 0.1f;
+			ballStartPosition.z -= mainWindow.getYChange() * 0.1f;
+			camera.move(ballStartPosition + glm::vec3(0.0f, 60.0f, 25.0f), cameraSetupYaw, cameraSetupPitch);
+		}
+		else if (!settingsActive)
+		{
+			camera.keyControl(mainWindow.getsKeys(), deltaTime);
+			camera.mouseControl(mainWindow.getXChange(), mainWindow.getYChange());
+		}
+			
+		bool* keys = mainWindow.getsKeys();
+		if (!setupStage && keys[GLFW_KEY_F])
+		{
+			if (!myBall.getHasBeenKicked())
+			{
+				myBall.reset(angularVelocity, initVelocity, xAngle, yAngle, spinDirection);
+			}
 			myBall.kick();
 		}
-		if (myBall.getHasBeenKicked())
+		if (!setupStage && keys[GLFW_KEY_Q])
 		{
-			model = glm::translate(model, myBall.euler(deltaTime));
-			rotate -= 0.05f;
-			model = glm::rotate(model, rotate, glm::vec3(0.0f, 1.0f, 0.0f));
+			myBall.reset(angularVelocity, initVelocity, xAngle, yAngle, spinDirection);
+			camera.move(cameraSetupPosition, cameraSetupYaw, cameraSetupPitch);
+			//ballStartPosition = glm::vec3(0.0f, 0.31f, 0.0f);
+			setupStage = true;
+		}
+		if (!setupStage && keys[GLFW_KEY_R])
+		{
+			myBall.reset(angularVelocity, initVelocity, xAngle, yAngle, spinDirection);
+		}
+		if (setupStage && ImGui::IsMouseClicked(0))
+		{
+			if (!shouldFollowBall)
+			{
+				camera.move(ballStartPosition + glm::vec3(0.0f, 5.0f, 20.0f), -90.0f, 0.0f);
+			}
+			setupStage = false;
+		}
+		if (keys[GLFW_KEY_LEFT_CONTROL])
+		{
+			settingsActive = true;
+			glfwSetInputMode(mainWindow.mainWindow, GLFW_CURSOR, GLFW_CURSOR_NORMAL);
+		}
+		else
+		{
+			settingsActive = false;
+			glfwSetInputMode(mainWindow.mainWindow, GLFW_CURSOR, GLFW_CURSOR_DISABLED);
 		}
 
+		if (!setupStage && shouldFollowBall)
+		{
+			camera.followBall(ballStartPosition + myBall.getPosition());
+		}
+		
+		DirectionalShadowMapPass(&mainLight);
+		RenderPass(camera.calculateViewMatrix(), projection);
 
+		ImGui::SetWindowCollapsed(true);
+		ImGui::Begin("Settings");
+		ImGui::SliderFloat("Initial Velocity", &initVelocity, 0.0f, 50.0f);
+		ImGui::SliderFloat("Angular Velocity", &angularVelocity, -100.0f, 100.0f);
+		ImGui::SliderFloat("X Angle", &xAngle, -60.0f, 60.0f);
+		ImGui::SliderFloat("Y Angle", &yAngle, 0.0f, 89.0f);
+		ImGui::Checkbox("Follow Ball?", &shouldFollowBall);
+		ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / ImGui::GetIO().Framerate, ImGui::GetIO().Framerate);
+		ImGui::End();
 
-		model = glm::scale(model, glm::vec3(0.3f, 0.3f, 0.3f));
-		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
-		glUniformMatrix4fv(uniformProjection, 1, GL_FALSE, glm::value_ptr(projection));
-		glUniformMatrix4fv(uniformView, 1, GL_FALSE, glm::value_ptr(camera.calculateViewMatrix()));
-		ball.UseTexture();
-		meshList[0]->RenderMesh();
-
-		model = glm::mat4(1.0f);
-		//model = glm::rotate(model, 45.0f, glm::vec3(0.5f, 1.0f, 0.0f));
-		model = glm::scale(model, glm::vec3(67.0f, 85.0f, 103.0f));
-		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
-		field.UseTexture();
-		meshList[1]->RenderMesh();
-
-		model = glm::mat4(1.0f);
-		//model = glm::rotate(model, 45.0f, glm::vec3(0.5f, 1.0f, 0.0f));
-		model = glm::scale(model, glm::vec3(1.0f, 1.0f, 1.0f));
-		glUniformMatrix4fv(uniformModel, 1, GL_FALSE, glm::value_ptr(model));
-		field.UseTexture();
-		nanosuit.RenderModel();
+		ImGui::Render();
+		ImGui_ImplGlfwGL3_RenderDrawData(ImGui::GetDrawData());
 		
 		glUseProgram(0);
 
 		mainWindow.swapBuffers();
 	}
+
+	ImGui_ImplGlfwGL3_Shutdown();
+	ImGui::DestroyContext();
 
 	return 0;
 }

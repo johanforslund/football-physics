@@ -32,6 +32,7 @@ Window::Window(GLint windowWidth, GLint windowHeight)
 
 int Window::Initialise()
 {
+
 	// Initialise GLFW
 	if (!glfwInit())
 	{
@@ -49,8 +50,21 @@ int Window::Initialise()
 	// Allow Forward Compatbility
 	glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);
 
+	const GLFWvidmode * mode = glfwGetVideoMode(glfwGetPrimaryMonitor());
+
+	const int window_width = mode->width;
+	const int window_height = mode->height;
+
+	if (window_width > 0 && window_height > 0)
+	{
+		width = window_width;
+		height = window_height;
+	}
+
 	// Create the window
-	mainWindow = glfwCreateWindow(width, height, "Test Window", NULL, NULL);
+	mainWindow = glfwCreateWindow(width, height, "Test Window", glfwGetPrimaryMonitor(), NULL);
+
+	// Create the window
 	if (!mainWindow)
 	{
 		printf("GLFW window creation failed!");

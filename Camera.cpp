@@ -78,6 +78,24 @@ void Camera::update()
 	up = glm::normalize(glm::cross(right, front));
 }
 
+void Camera::move(glm::vec3 _position, GLfloat _yaw, GLfloat _pitch)
+{
+	position = _position;
+	yaw = _yaw;
+	pitch = _pitch;
+	update();
+}
+
+void Camera::followBall(glm::vec3 ballPosition)
+{
+	position.x = ballPosition.x;
+	position.y = ballPosition.y + 5.0f;
+	position.z = ballPosition.z + 30.f;
+	yaw = -90.0f;
+	pitch = 0.0f;
+	update();
+}
+
 
 Camera::~Camera()
 {
